@@ -67,7 +67,7 @@ export function OctraWalletCard({ pk, onPkChange, onBalanceChange }: Props) {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="octra-pk">Octra Private Key (base64, 32 bytes)</Label>
+        <Label htmlFor="octra-pk">Octra Private Key (base64 or hex)</Label>
         <div className="relative">
           <Input
             id="octra-pk"
