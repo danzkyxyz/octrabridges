@@ -42,15 +42,50 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
-export function derivePublicKey(pkB64: string): Uint8Array {
-  const seed = base64ToBytes(pkB64);
-  if (seed.length !== 32)
-    throw new Error("Invalid Octra private key (must be 32-byte base64)");
+function hexToBytes(hex: string): Uint8Array {
+  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  if (clean.length % 2 !== 0) throw new Error("Invalid hex");
+  const out = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(clean.substr(i * 2, 2), 16);
+  }
+  return out;
+}
+
+/**
+ * Parse Octra private key from multiple formats and return the 32-byte seed:
+ *  - 32-byte base64 seed (e.g. "AAAA…")
+ *  - 64-byte base64 (seed || pubkey) — common from CLI/wallet exports
+ *  - 32 or 64-byte hex (with or without 0x prefix)
+ */
+export function parsePrivateKey(input: string): Uint8Array {
+  const s = input.trim();
+  if (!s) throw new Error("Empty key");
+
+  const hexBody = s.replace(/^0x/, "");
+  if (/^[0-9a-fA-F]+$/.test(hexBody) && (hexBody.length === 64 || hexBody.length === 128)) {
+    return hexToBytes(s).slice(0, 32);
+  }
+
+  let b: Uint8Array;
+  try {
+    b = base64ToBytes(s);
+  } catch {
+    throw new Error("Invalid key (not valid base64 or hex)");
+  }
+  if (b.length === 32 || b.length === 64) return b.slice(0, 32);
+  throw new Error(
+    `Invalid private key length: ${b.length} bytes (expected 32 or 64)`,
+  );
+}
+
+export function derivePublicKey(pkInput: string): Uint8Array {
+  const seed = parsePrivateKey(pkInput);
   return ed.getPublicKey(seed);
 }
 
-export function deriveOctraAddress(pkB64: string): string {
-  const pub = derivePublicKey(pkB64);
+export function deriveOctraAddress(pkInput: string): string {
+  const pub = derivePublicKey(pkInput);
   const h = sha256(pub);
   return "oct" + bytesToBase58(h);
 }
@@ -79,19 +114,34 @@ export async function octraRpc<T = unknown>(
 }
 
 export async function getOctraBalance(address: string): Promise<OctraBalance> {
-  const r = await octraRpc<{
-    balance: string;
-    balance_raw: string;
-    nonce: number;
-    pending_nonce?: number;
-  }>("octra_balance", [address]);
-  return {
-    address,
-    balance: r.balance,
-    balance_raw: BigInt(r.balance_raw),
-    nonce: Number(r.nonce),
-    pending_nonce: Number(r.pending_nonce ?? r.nonce),
-  };
+  try {
+    const r = await octraRpc<{
+      balance: string;
+      balance_raw: string;
+      nonce: number;
+      pending_nonce?: number;
+    }>("octra_balance", [address]);
+    return {
+      address,
+      balance: r.balance,
+      balance_raw: BigInt(r.balance_raw),
+      nonce: Number(r.nonce),
+      pending_nonce: Number(r.pending_nonce ?? r.nonce),
+    };
+  } catch (e) {
+    // "sender not found" → wallet exists but has never received OCT → treat as 0
+    const msg = (e as Error).message?.toLowerCase() ?? "";
+    if (msg.includes("not found") || msg.includes("sender")) {
+      return {
+        address,
+        balance: "0",
+        balance_raw: 0n,
+        nonce: 0,
+        pending_nonce: 0,
+      };
+    }
+    throw e;
+  }
 }
 
 /**
@@ -99,13 +149,13 @@ export async function getOctraBalance(address: string): Promise<OctraBalance> {
  * recipient = the Ethereum address that should receive wOCT (NO router → fee 0%).
  */
 export async function buildLockTx(
-  pkB64: string,
+  pkInput: string,
   sender: string,
   nonce: number,
   amountRaw: bigint,
   ethRecipient: string,
 ) {
-  const seed = base64ToBytes(pkB64);
+  const seed = parsePrivateKey(pkInput);
   const pub = await ed.getPublicKeyAsync(seed);
 
   const core: Record<string, unknown> = {
