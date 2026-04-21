@@ -29,14 +29,18 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "Octra Bridges" },
+      { name: "description", content: "y" },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "Octra Bridges" },
+      { property: "og:description", content: "y" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Octra Bridges" },
+      { name: "twitter:description", content: "y" },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/olPq0Pd4CchEENmdDcBbciLWO5C3/social-images/social-1776760982639-TELE.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/olPq0Pd4CchEENmdDcBbciLWO5C3/social-images/social-1776760982639-TELE.webp" },
     ],
     links: [
       {
