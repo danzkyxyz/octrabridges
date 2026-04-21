@@ -114,19 +114,34 @@ export async function octraRpc<T = unknown>(
 }
 
 export async function getOctraBalance(address: string): Promise<OctraBalance> {
-  const r = await octraRpc<{
-    balance: string;
-    balance_raw: string;
-    nonce: number;
-    pending_nonce?: number;
-  }>("octra_balance", [address]);
-  return {
-    address,
-    balance: r.balance,
-    balance_raw: BigInt(r.balance_raw),
-    nonce: Number(r.nonce),
-    pending_nonce: Number(r.pending_nonce ?? r.nonce),
-  };
+  try {
+    const r = await octraRpc<{
+      balance: string;
+      balance_raw: string;
+      nonce: number;
+      pending_nonce?: number;
+    }>("octra_balance", [address]);
+    return {
+      address,
+      balance: r.balance,
+      balance_raw: BigInt(r.balance_raw),
+      nonce: Number(r.nonce),
+      pending_nonce: Number(r.pending_nonce ?? r.nonce),
+    };
+  } catch (e) {
+    // "sender not found" → wallet exists but has never received OCT → treat as 0
+    const msg = (e as Error).message?.toLowerCase() ?? "";
+    if (msg.includes("not found") || msg.includes("sender")) {
+      return {
+        address,
+        balance: "0",
+        balance_raw: 0n,
+        nonce: 0,
+        pending_nonce: 0,
+      };
+    }
+    throw e;
+  }
 }
 
 /**
@@ -134,13 +149,13 @@ export async function getOctraBalance(address: string): Promise<OctraBalance> {
  * recipient = the Ethereum address that should receive wOCT (NO router → fee 0%).
  */
 export async function buildLockTx(
-  pkB64: string,
+  pkInput: string,
   sender: string,
   nonce: number,
   amountRaw: bigint,
   ethRecipient: string,
 ) {
-  const seed = base64ToBytes(pkB64);
+  const seed = parsePrivateKey(pkInput);
   const pub = await ed.getPublicKeyAsync(seed);
 
   const core: Record<string, unknown> = {
