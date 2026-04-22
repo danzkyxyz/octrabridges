@@ -32,5 +32,5 @@ export const DONATION_ADDRESS = "0x2b5651c9952C0E24d7666fC984BF8543b7142D02" as 
 export const OCT_DECIMALS = 6;
 export const OCT_UNIT = 1_000_000n;
 
-// Reserve for fees on Octra side (1 OCT)
-export const OCTRA_FEE_RESERVE = 1_000_000n;
+// Reserve for fees on Octra side (0.001 OCT)
+export const OCTRA_FEE_RESERVE = 1_000n;
