@@ -81,13 +81,8 @@ export function DonationCard() {
     <Card className="glass-card p-6 space-y-4 border-primary/20">
       <div className="flex items-center gap-2">
         <Heart className="h-5 w-5 text-primary" fill="currentColor" />
-        <h3 className="text-lg font-semibold">Support this free bridge</h3>
+        <h3 className="text-lg font-semibold">Donation</h3>
       </div>
-      <p className="text-sm text-muted-foreground">
-        This bridge charges{" "}
-        <span className="text-success font-semibold">0% fees</span>. If it
-        helped you, consider a small tip — it keeps the project alive.
-      </p>
 
       <div className="rounded-lg border border-border bg-muted/40 p-3 flex items-center justify-between gap-2">
         <code className="text-xs sm:text-sm font-mono break-all">

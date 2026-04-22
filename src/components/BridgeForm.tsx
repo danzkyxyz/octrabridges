@@ -76,9 +76,6 @@ export function BridgeForm({ octraPk, octraBalance }: Props) {
       <div className="flex items-center gap-2">
         <ArrowDownUp className="h-5 w-5 text-primary" />
         <h3 className="text-lg font-semibold">Bridge OCT → wOCT (Ethereum)</h3>
-        <span className="ml-auto text-xs px-2 py-1 rounded-full bg-success/15 text-success font-semibold">
-          0% FEE
-        </span>
       </div>
 
       <div className="space-y-2">
