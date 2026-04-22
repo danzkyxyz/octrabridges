@@ -113,6 +113,20 @@ export const LATEST_EPOCH_ABI = [
     inputs: [{ type: "uint64" }],
     outputs: [{ type: "bytes32" }],
   },
+  {
+    type: "function",
+    name: "headerIdByEpoch",
+    stateMutability: "view",
+    inputs: [{ type: "uint64" }],
+    outputs: [{ type: "bytes32" }],
+  },
+] as const;
+
+export const BRIDGE_STATE_ABI = [
+  { type: "function", name: "paused", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
+  { type: "function", name: "mintCapPerTx", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "mintCapDaily", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "mintedToday", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
 ] as const;
 
 export const ERC20_ABI = [

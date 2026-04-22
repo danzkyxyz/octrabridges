@@ -21,7 +21,7 @@ function LockRow({
     <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
       <div className="flex items-center justify-between text-sm">
         <span className="font-mono text-xs">
-          Lock #{lock.nonce}
+          Lock #{lock.nonce} · epoch {lock.epoch}
         </span>
         <span className="font-semibold text-gradient">
           {lock.amountHuman} OCT
@@ -73,7 +73,7 @@ function LockRow({
       {lock.status === "recovering" && (
         <div className="flex items-center gap-1.5 text-xs text-primary">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Searching epoch & minting…
+          Verifying proof & minting…
         </div>
       )}
 
@@ -157,7 +157,7 @@ export function RecoveryCard({ octraPk }: Props) {
               lock={lock}
               onRecover={() => {
                 if (!isConnected) return;
-                recover(lock, octraPk);
+                recover(lock);
               }}
               isRecovering={isRecovering}
             />

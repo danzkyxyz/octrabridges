@@ -1,6 +1,9 @@
 /**
- * useRecovery — scans Octra bridge contract for the user's unprocessed locks
- * and lets them complete verifyAndMint via their connected wallet (RainbowKit).
+ * useRecovery — fetches lock_to_eth TXs from Octra (with exact epochs),
+ * checks which are unprocessed on Ethereum, and lets the user complete
+ * verifyAndMint via their connected wallet (RainbowKit).
+ *
+ * Uses octra_transactionsByAddress for exact epoch lookup (no blind search).
  */
 import { useCallback, useRef, useState } from "react";
 import { createPublicClient, http } from "viem";
@@ -25,6 +28,7 @@ const ZERO_HASH =
 
 export interface LockRecord {
   nonce: number;
+  epoch: number;
   amount: bigint;
   amountHuman: string;
   ethRecipient: string;
@@ -40,6 +44,17 @@ export interface RecoveryState {
   stage: RecoveryStage;
   locks: LockRecord[];
   error?: string;
+}
+
+interface OctraTx {
+  hash: string;
+  epoch: number;
+  from: string;
+  to?: string;
+  to_?: string;
+  amount: string;
+  encrypted_data?: string;
+  message?: string;
 }
 
 function ethClient() {
@@ -58,7 +73,26 @@ export function useRecovery() {
     try {
       const octraAddr = deriveOctraAddress(octraPk);
 
-      // Read bridge contract storage
+      // 1. Fetch TX history from Octra (with exact epochs)
+      const txHistory = await octraRpc<{
+        transactions: OctraTx[];
+        rejected?: OctraTx[];
+      }>("octra_transactionsByAddress", [octraAddr]);
+
+      const lockTxs = (txHistory.transactions || [])
+        .filter(
+          (tx) =>
+            tx.encrypted_data === "lock_to_eth" &&
+            (tx.to_ || tx.to) === OCTRA_BRIDGE_CONTRACT,
+        )
+        .sort((a, b) => a.epoch - b.epoch); // oldest first = nonce order
+
+      if (lockTxs.length === 0) {
+        setState({ stage: "ready", locks: [] });
+        return;
+      }
+
+      // 2. Read bridge storage to map nonces
       const st = await octraRpc<{ storage: Record<string, string> }>(
         "contract_call",
         [OCTRA_BRIDGE_CONTRACT, "version", []],
@@ -66,31 +100,34 @@ export function useRecovery() {
       const storage = st.storage;
       const lockNonce = Number(storage.lock_nonce);
 
-      // Find user's locks
-      const userLocks: LockRecord[] = [];
+      const userNonces: number[] = [];
       for (let n = 1; n <= lockNonce; n++) {
-        if (cancelRef.current) throw new Error("Cancelled");
-        const sender = storage[`lock_history:${n}`];
-        if (sender === octraAddr) {
-          const amount = BigInt(storage[`lock_amounts:${n}`] || "0");
-          const ethRecipient = storage[`lock_eth_recipients:${n}`] || "";
-          userLocks.push({
-            nonce: n,
-            amount,
-            amountHuman: (Number(amount) / 1e6).toFixed(6),
-            ethRecipient,
-            processed: false,
-            status: "scanning",
-          });
+        if (storage[`lock_history:${n}`] === octraAddr) {
+          userNonces.push(n);
         }
       }
 
-      if (userLocks.length === 0) {
-        setState({ stage: "ready", locks: [] });
-        return;
+      // 3. Build lock records with exact epochs
+      const userLocks: LockRecord[] = [];
+      for (let i = 0; i < lockTxs.length; i++) {
+        if (cancelRef.current) throw new Error("Cancelled");
+        const tx = lockTxs[i];
+        const nonce = userNonces[i];
+        if (!nonce) continue;
+        const amount = BigInt(storage[`lock_amounts:${nonce}`] || "0");
+        const ethRecipient = storage[`lock_eth_recipients:${nonce}`] || "";
+        userLocks.push({
+          nonce,
+          epoch: tx.epoch,
+          amount,
+          amountHuman: (Number(amount) / 1e6).toFixed(6),
+          ethRecipient,
+          processed: false,
+          status: "scanning",
+        });
       }
 
-      // Check which locks are already processed on Ethereum
+      // 4. Check which locks are already processed on Ethereum
       const client = ethClient();
       for (const lock of userLocks) {
         if (cancelRef.current) throw new Error("Cancelled");
@@ -126,7 +163,7 @@ export function useRecovery() {
   }, []);
 
   const recover = useCallback(
-    async (lock: LockRecord, octraPk: string) => {
+    async (lock: LockRecord) => {
       cancelRef.current = false;
       setState((s) => ({
         ...s,
@@ -140,7 +177,21 @@ export function useRecovery() {
         const client = ethClient();
         const msg = buildBridgeMsg(lock);
 
-        // Compute leaf & proof root
+        // 1. Check bridgeRootOf for the exact epoch
+        const bridgeRoot = (await client.readContract({
+          address: LATEST_EPOCH_CONTRACT,
+          abi: LATEST_EPOCH_ABI,
+          functionName: "bridgeRootOf",
+          args: [BigInt(lock.epoch)],
+        })) as `0x${string}`;
+
+        if (bridgeRoot === ZERO_HASH) {
+          throw new Error(
+            `Epoch ${lock.epoch} has no bridge root on Ethereum. It may not be synced yet — try again later.`,
+          );
+        }
+
+        // 2. Compute proof and verify match
         const leaf = (await client.readContract({
           address: BRIDGE_CONTRACT,
           abi: BRIDGE_ABI,
@@ -154,68 +205,36 @@ export function useRecovery() {
           args: [leaf, [], 0],
         })) as `0x${string}`;
 
-        // Get latest epoch and user_last_lock_epoch hint
-        const latestEpoch = (await client.readContract({
-          address: LATEST_EPOCH_CONTRACT,
-          abi: LATEST_EPOCH_ABI,
-          functionName: "latestEpoch",
-        })) as bigint;
-
-        const octraAddr = deriveOctraAddress(octraPk);
-        const stHint = await octraRpc<{ storage: Record<string, string> }>(
-          "contract_call",
-          [OCTRA_BRIDGE_CONTRACT, "version", []],
-        );
-        const hintKey = `user_last_lock_epoch:${octraAddr}`;
-        const hintEpoch = stHint.storage[hintKey]
-          ? Number(stHint.storage[hintKey])
-          : Number(latestEpoch);
-        const ethLatest = Number(latestEpoch);
-
-        // Search epochs
-        let matchedEpoch: number | null = null;
-        const ranges: [number, number][] = [
-          [hintEpoch, Math.max(1, hintEpoch - 300)],
-          [Math.min(ethLatest, hintEpoch + 300), hintEpoch + 1],
-          [ethLatest, Math.max(1, ethLatest - 300)],
-          [Math.max(1, hintEpoch - 300), Math.max(1, hintEpoch - 3000)],
-        ];
-
-        search:
-        for (const [start, end] of ranges) {
-          if (cancelRef.current) throw new Error("Cancelled");
-          const step = start >= end ? -1 : 1;
-          for (let ep = start; step < 0 ? ep >= end : ep <= end; ep += step) {
-            if (cancelRef.current) throw new Error("Cancelled");
-            try {
-              const root = (await client.readContract({
-                address: LATEST_EPOCH_CONTRACT,
-                abi: LATEST_EPOCH_ABI,
-                functionName: "bridgeRootOf",
-                args: [BigInt(ep)],
-              })) as `0x${string}`;
-              if (root === computedRoot && root !== ZERO_HASH) {
-                matchedEpoch = ep;
-                break search;
-              }
-            } catch {
-              /* skip */
-            }
-          }
-        }
-
-        if (!matchedEpoch) {
+        if (computedRoot !== bridgeRoot) {
           throw new Error(
-            "No matching epoch found. This lock may require siblings (multi-message epoch) or the epoch hasn't synced yet.",
+            "Proof mismatch — this epoch may contain multiple TXs (needs merkle siblings).",
           );
         }
 
-        // Call verifyAndMint
+        // 3. Static call test before spending gas
+        try {
+          await client.simulateContract({
+            address: BRIDGE_CONTRACT,
+            abi: BRIDGE_ABI,
+            functionName: "verifyAndMint",
+            args: [BigInt(lock.epoch), msg, [], 0],
+          });
+        } catch (simErr) {
+          const errStr = (simErr as Error).message || "";
+          if (errStr.includes("a4875a49")) {
+            throw new Error(
+              "DailyMintCapExceeded — the bridge daily mint limit has been reached. Try again after UTC midnight.",
+            );
+          }
+          throw new Error(`Static call failed: ${errStr.slice(0, 150)}`);
+        }
+
+        // 4. Call verifyAndMint via user's wallet
         const txHash = await writeContractAsync({
           address: BRIDGE_CONTRACT,
           abi: BRIDGE_ABI,
           functionName: "verifyAndMint",
-          args: [BigInt(matchedEpoch), msg, [], 0],
+          args: [BigInt(lock.epoch), msg, [], 0],
         });
 
         setState((s) => ({
@@ -233,7 +252,9 @@ export function useRecovery() {
           ? "Transaction rejected by user"
           : errMsg.includes("insufficient")
             ? "Insufficient ETH for gas"
-            : errMsg;
+            : errMsg.includes("DailyMintCapExceeded")
+              ? "Daily mint cap exceeded. Try again after UTC midnight."
+              : errMsg;
         setState((s) => ({
           ...s,
           stage: "ready",
