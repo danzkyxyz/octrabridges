@@ -49,7 +49,7 @@ export function BridgeForm({ octraPk, octraBalance }: Props) {
     if (!isConnected) return "Connect your Ethereum wallet";
     if (!octraPk.trim()) return "Enter your Octra private key";
     if (!octraBalance) return "Loading Octra balance…";
-    if (amountRaw < OCT_UNIT) return "Minimum 1 OCT";
+    if (amountRaw < 100n) return "Minimum 0.0001 OCT";
     if (amountRaw > octraBalance.balance_raw - OCTRA_FEE_RESERVE)
       return "Amount exceeds available balance";
     return null;
@@ -99,8 +99,8 @@ export function BridgeForm({ octraPk, octraBalance }: Props) {
             id="amount"
             type="number"
             inputMode="decimal"
-            min="1"
-            step="0.000001"
+            min="0.0001"
+            step="0.0001"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0.00"
