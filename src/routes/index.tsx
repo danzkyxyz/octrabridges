@@ -46,7 +46,7 @@ function BridgeApp() {
                 Octra Bridge
               </h1>
               <p className="text-[10px] uppercase tracking-wider text-success font-semibold">
-                0% Fee · Client-side
+                Client-side
               </p>
             </div>
           </div>
@@ -64,7 +64,7 @@ function BridgeApp() {
             Bridge <span className="text-gradient">OCT → Ethereum</span>
           </h2>
           <p className="text-muted-foreground max-w-lg mx-auto">
-            Direct bridge with no router and no fees. Your keys stay in your browser;
+            Direct bridge with no router. Your keys stay in your browser;
             you sign Ethereum transactions yourself.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4 pt-2 text-xs">
@@ -73,9 +73,6 @@ function BridgeApp() {
             </span>
             <span className="flex items-center gap-1.5 text-muted-foreground">
               <Zap className="h-3.5 w-3.5 text-primary" /> ~1 minute
-            </span>
-            <span className="flex items-center gap-1.5 text-muted-foreground">
-              <Sparkles className="h-3.5 w-3.5 text-primary" /> 0% fees
             </span>
           </div>
         </section>
