@@ -1,33 +1,13 @@
 import { useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { createFileRoute } from "@tanstack/react-router";
 import { Sparkles, Shield, Zap } from "lucide-react";
-import { ClientOnly } from "@tanstack/react-router";
 import { Web3Providers } from "@/components/Web3Providers";
 import { OctraWalletCard } from "@/components/OctraWalletCard";
 import { BridgeForm } from "@/components/BridgeForm";
+import { RecoveryCard } from "@/components/RecoveryCard";
 import { DonationCard } from "@/components/DonationCard";
 import { Toaster } from "@/components/ui/sonner";
 import type { OctraBalance } from "@/lib/bridge/octra";
-
-export const Route = createFileRoute("/")({
-  component: Index,
-  head: () => ({
-    meta: [
-      { title: "Octra → Ethereum Bridge — 0% Fee" },
-      {
-        name: "description",
-        content:
-          "Free, fully client-side bridge from Octra to Ethereum. No middleman, no fees — just gas. Sign with your own wallet.",
-      },
-      { property: "og:title", content: "Octra → Ethereum Bridge — 0% Fee" },
-      {
-        property: "og:description",
-        content: "Free client-side OCT → wOCT bridge. No fees, no router.",
-      },
-    ],
-  }),
-});
 
 function BridgeApp() {
   const [octraPk, setOctraPk] = useState("");
@@ -85,18 +65,32 @@ function BridgeApp() {
 
         <BridgeForm octraPk={octraPk} octraBalance={octraBalance} />
 
+        <RecoveryCard octraPk={octraPk} />
+
         <DonationCard />
 
-        <footer className="text-center text-xs text-muted-foreground pt-6 pb-4">
-          Built for the community · Verify the contract:{" "}
-          <a
-            href="https://etherscan.io/address/0xe7ed69b852fd2a1406080b26a37e8e04e7da4cae"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary hover:underline"
-          >
-            EthereumBridge
-          </a>
+        <footer className="text-center text-xs text-muted-foreground pt-6 pb-4 space-y-2">
+          <p>
+            Built for the community · Verify the contract:{" "}
+            <a
+              href="https://etherscan.io/address/0xe7ed69b852fd2a1406080b26a37e8e04e7da4cae"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              EthereumBridge
+            </a>
+          </p>
+          <p>
+            <a
+              href="https://github.com/danzkyxyz/octrabridges"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              GitHub Repository
+            </a>
+          </p>
         </footer>
       </main>
       <Toaster />
@@ -104,12 +98,10 @@ function BridgeApp() {
   );
 }
 
-function Index() {
+export function App() {
   return (
-    <ClientOnly fallback={<div className="min-h-screen" />}>
-      <Web3Providers>
-        <BridgeApp />
-      </Web3Providers>
-    </ClientOnly>
+    <Web3Providers>
+      <BridgeApp />
+    </Web3Providers>
   );
 }

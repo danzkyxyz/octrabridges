@@ -9,7 +9,7 @@
  * 6. mint      : user signs verifyAndMint via wallet (RainbowKit) → 0% fee
  */
 import { useCallback, useRef, useState } from "react";
-import { createPublicClient, http, parseAbi } from "viem";
+import { createPublicClient, http } from "viem";
 import { mainnet } from "viem/chains";
 import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import {
@@ -274,4 +274,3 @@ export function useBridge() {
   return { state, run, reset, cancel: () => (cancelRef.current = true) };
 }
 
-void parseAbi;
